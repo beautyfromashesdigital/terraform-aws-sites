@@ -9,18 +9,6 @@ provider "aws" {
   region = "us-east-1"
 }
 
-################################################
-# VARIABLES
-################################################
-variable "domain" {
-  description = "The custom domain, e.g. example.com"
-  type        = string
-}
-variable "aws_region" {
-  description = "AWS region for S3/CF/etc"
-  type        = string
-  default     = "us-west-2"
-}
 
 ################################################
 # S3 BUCKET (static hosting)
