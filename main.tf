@@ -111,6 +111,13 @@ resource "aws_cloudfront_distribution" "cdn" {
     cached_methods         = ["GET","HEAD"]
   }
 
+# REQUIRED BY AWS PROVIDER v5+: Must have at least one restrictions block
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
   viewer_certificate {
     acm_certificate_arn = aws_acm_certificate_validation.cert_validation.certificate_arn
     ssl_support_method  = "sni-only"
