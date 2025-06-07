@@ -69,11 +69,15 @@ resource "aws_acm_certificate" "cert" {
 }
 
 resource "aws_route53_record" "cert_validation" {
+  for_each = {
+    for opt in aws_acm_certificate.cert.domain_validation_options :
+    opt.domain_name => opt
+  }
   zone_id = aws_route53_zone.zone.zone_id
-  name    = aws_acm_certificate.cert.domain_validation_options[0].resource_record_name
-  type    = aws_acm_certificate.cert.domain_validation_options[0].resource_record_type
+  name    = each.value.resource_record_name
+  type    = each.value.resource_record_type
   ttl     = 60
-  records = [aws_acm_certificate.cert.domain_validation_options[0].resource_record_value]
+  records = [each.value.resource_record_value]
 }
 
 resource "aws_acm_certificate_validation" "cert_validation" {
