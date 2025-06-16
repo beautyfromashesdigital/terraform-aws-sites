@@ -17,5 +17,5 @@ output "validation_record_name" {
 
 output "validation_record_value" {
   description = "Value of the TXT record for ACM DNS validation"
-  value       = aws_route53_record.cert_validation.records[0]
+  value       = tolist(aws_route53_record.cert_validation.records)[0]
 }
