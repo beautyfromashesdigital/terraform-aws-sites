@@ -10,16 +10,16 @@ output "cloudfront_domain_name" {
   value = aws_cloudfront_distribution.cdn.domain_name
 }
 
-output "validation_record_name" {
-  value = local.dvo.resource_record_name
+output "validation_record_names" {
+  value = [for dvo in local.dvos : dvo.resource_record_name]
 }
 
-output "validation_record_type" {
-  value = local.dvo.resource_record_type
+output "validation_record_types" {
+  value = [for dvo in local.dvos : dvo.resource_record_type]
 }
 
-output "validation_record_value" {
-  value = local.dvo.resource_record_value
+output "validation_record_values" {
+  value = [for dvo in local.dvos : dvo.resource_record_value]
 }
 
 output "zone_name_servers" {
