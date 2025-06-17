@@ -55,9 +55,10 @@ resource "aws_s3_bucket_policy" "site_policy" {
 ####################################
 # Route 53 Hosted Zone (optional)
 ####################################
-resource "aws_route53_zone" "zone" {
+data "aws_route53_zone" "zone" {
   count = var.use_route53 ? 1 : 0
   name  = var.domain
+  private_zone = false
 }
 
 ####################################
@@ -75,7 +76,7 @@ locals {
 
 resource "aws_route53_record" "cert_validation" {
   count   = var.use_route53 ? 1 : 0
-  zone_id = aws_route53_zone.zone[0].zone_id
+  zone_id = data.aws_route53_zone.zone[0].zone_id
   name    = local.dvo.resource_record_name
   type    = local.dvo.resource_record_type
   ttl     = 60
@@ -129,7 +130,7 @@ resource "aws_cloudfront_distribution" "cdn" {
 ####################################
 resource "aws_route53_record" "root_alias" {
   count   = var.use_route53 ? 1 : 0
-  zone_id = aws_route53_zone.zone[0].zone_id
+  zone_id = data.aws_route53_zone.zone[0].zone_id
   name    = var.domain
   type    = "A"
   alias {
@@ -141,7 +142,7 @@ resource "aws_route53_record" "root_alias" {
 
 resource "aws_route53_record" "www_cname" {
   count   = var.use_route53 ? 1 : 0
-  zone_id = aws_route53_zone.zone[0].zone_id
+  zone_id = data.aws_route53_zone.zone[0].zone_id
   name    = "www"
   type    = "CNAME"
   ttl     = 300
