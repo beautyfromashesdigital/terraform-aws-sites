@@ -77,27 +77,29 @@ data "aws_route53_zone" "zone" {
 resource "aws_acm_certificate" "cert" {
   provider          = aws.us_east
   domain_name       = var.domain
+  subject_alternative_names = ["www.${var.domain}"]
   validation_method = "DNS"
 }
 
 locals {
-  dvo = tolist(aws_acm_certificate.cert.domain_validation_options)[0]
+  dvos = aws_acm_certificate.cert.domain_validation_options
 }
 
 resource "aws_route53_record" "cert_validation" {
-  count   = var.use_route53 ? 1 : 0
+  count   = var.use_route53 ? length(local.dvos) : 0
   zone_id = data.aws_route53_zone.zone[0].zone_id
-  name    = local.dvo.resource_record_name
-  type    = local.dvo.resource_record_type
+  name    = local.dvos[count.index].resource_record_name
+  type    = local.dvos[count.index].resource_record_type
   ttl     = 60
-  records = [local.dvo.resource_record_value]
+  records = [local.dvos[count.index].resource_record_value]
 }
 
 resource "aws_acm_certificate_validation" "cert_validation" {
   provider                = aws.us_east
   certificate_arn         = aws_acm_certificate.cert.arn
-  validation_record_fqdns = var.use_route53 ? [aws_route53_record.cert_validation[0].fqdn] : []
+  validation_record_fqdns = var.use_route53 ? aws_route53_record.cert_validation[*].fqdn : []
 }
+
 
 ####################################
 # CLOUDFRONT DISTRIBUTION
