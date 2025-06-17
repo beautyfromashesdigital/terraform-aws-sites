@@ -86,18 +86,25 @@ locals {
 }
 
 resource "aws_route53_record" "cert_validation" {
-  count   = var.use_route53 ? length(local.dvos) : 0
+  for_each = var.use_route53 ? {
+    for dvo in local.dvos : dvo.domain_name => {
+      name   = dvo.resource_record_name
+      type   = dvo.resource_record_type
+      record = dvo.resource_record_value
+    }
+  } : {}
+
   zone_id = data.aws_route53_zone.zone[0].zone_id
-  name    = local.dvos[count.index].resource_record_name
-  type    = local.dvos[count.index].resource_record_type
+  name    = each.value.name
+  type    = each.value.type
   ttl     = 60
-  records = [local.dvos[count.index].resource_record_value]
+  records = [each.value.record]
 }
 
 resource "aws_acm_certificate_validation" "cert_validation" {
   provider                = aws.us_east
   certificate_arn         = aws_acm_certificate.cert.arn
-  validation_record_fqdns = var.use_route53 ? aws_route53_record.cert_validation[*].fqdn : []
+  validation_record_fqdns = var.use_route53 ? values(aws_route53_record.cert_validation)[*].fqdn : []
 }
 
 
