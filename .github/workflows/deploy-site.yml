@@ -1,0 +1,105 @@
+name: Reusable Deploy Static Site
+
+on:
+  workflow_call:
+    inputs:
+      domain:
+        required: true
+        type: string
+      aws_region:
+        required: false
+        type: string
+        default: 'us-east-1'
+      use_route53:
+        required: false
+        type: string
+        default: 'true'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout the caller repo (the customer site)
+      - name: Checkout site code
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ github.repository }}
+          path: site
+
+      # 2️⃣ Checkout THIS infra repo (terraform-aws-sites)
+      - name: Checkout Terraform config
+        uses: actions/checkout@v3
+        with:
+          repository: beautyfromashesdigital/terraform-aws-sites
+          path: infra
+
+      # 3️⃣ Setup Node
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      # 4️⃣ Build the Next.js static site
+      - name: Install & Build Next.js
+        working-directory: site
+        run: |
+          npm install --legacy-peer-deps
+          npm run build
+
+      # 5️⃣ Setup AWS credentials
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::843489480342:role/github-actions-deployer
+          aws-region: ${{ inputs.aws_region }}
+          role-session-name: GitHubActions
+
+      # 6️⃣ Setup Terraform CLI
+      - name: Setup Terraform CLI
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: "1.5.6"
+
+      # 7️⃣ Terraform Init & Apply (uses infra repo root)
+      - name: Terraform Init & Apply
+        working-directory: infra
+        run: |
+          terraform init
+          terraform apply -auto-approve \
+            -var="domain=${{ inputs.domain }}" \
+            -var="aws_region=${{ inputs.aws_region }}" \
+            -var="use_route53=${{ inputs.use_route53 }}"
+
+      # 8️⃣ Sync static site to S3
+      - name: Sync to S3
+        run: |
+          BUCKET=$(terraform -chdir=infra output -raw bucket_name)
+          aws s3 sync site/out/ s3://$BUCKET --delete
+
+      # 9️⃣ Invalidate CloudFront
+      - name: Invalidate CloudFront
+        run: |
+          CF_ID=$(terraform -chdir=infra output -raw cloudfront_id)
+          aws cloudfront create-invalidation --distribution-id $CF_ID --paths "/*"
+
+      # 🔟 Show instructions if DNS is external
+      - name: Show DNS instructions if using external DNS
+        if: ${{ inputs.use_route53 == 'false' }}
+        run: |
+          echo "::notice ::Add this DNS record at your registrar to validate SSL:"
+          echo "  Name: $(terraform -chdir=infra output -raw validation_record_name)"
+          echo "  Type: $(terraform -chdir=infra output -raw validation_record_type)"
+          echo "  Value: $(terraform -chdir=infra output -raw validation_record_value)"
+          echo ""
+          echo "::notice ::Point your domain's A/CNAME to:"
+          echo "  $(terraform -chdir=infra output -raw cloudfront_domain_name)"
+
+      # ✅ Final success message
+      - name: Done!
+        run: |
+          echo "✅ Deployed! Visit: https://${{ inputs.domain }}"

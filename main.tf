@@ -1,27 +1,27 @@
 terraform {
   required_providers {
     aws = {
-        source = "hashicorp/aws"
-        version = "~> 5.0"
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
     }
   }
 }
 
-################################################
-# PROVIDERS
-################################################
+####################################
+# Providers
+####################################
 provider "aws" {
   region = var.aws_region
 }
+
 provider "aws" {
   alias  = "us_east"
   region = "us-east-1"
 }
 
-
-################################################
-# S3 BUCKET (static hosting)
-################################################
+####################################
+# S3 Bucket + Policy
+####################################
 resource "aws_s3_bucket" "site" {
   bucket = var.domain
   acl    = "private"
@@ -32,9 +32,8 @@ resource "aws_s3_bucket" "site" {
   }
 }
 
-resource "aws_s3_bucket_policy" "site_policy" {
-  bucket = aws_s3_bucket.site.id
-  policy = data.aws_iam_policy_document.s3_policy.json
+resource "aws_cloudfront_origin_access_identity" "oai" {
+  comment = "OAI for ${var.domain}"
 }
 
 data "aws_iam_policy_document" "s3_policy" {
@@ -48,20 +47,22 @@ data "aws_iam_policy_document" "s3_policy" {
   }
 }
 
-################################################
-# CLOUDFRONT ORIGIN ACCESS IDENTITY
-################################################
-resource "aws_cloudfront_origin_access_identity" "oai" {
-  comment = "OAI for ${var.domain}"
+resource "aws_s3_bucket_policy" "site_policy" {
+  bucket = aws_s3_bucket.site.id
+  policy = data.aws_iam_policy_document.s3_policy.json
 }
 
-################################################
-# ACM CERTIFICATE (us-east-1) + DNS VALIDATION
-################################################
+####################################
+# Route 53 Hosted Zone (optional)
+####################################
 resource "aws_route53_zone" "zone" {
-  name = var.domain
+  count = var.use_route53 ? 1 : 0
+  name  = var.domain
 }
 
+####################################
+# ACM Certificate + DNS validation
+####################################
 resource "aws_acm_certificate" "cert" {
   provider          = aws.us_east
   domain_name       = var.domain
@@ -73,7 +74,8 @@ locals {
 }
 
 resource "aws_route53_record" "cert_validation" {
-  zone_id = aws_route53_zone.zone.zone_id
+  count   = var.use_route53 ? 1 : 0
+  zone_id = aws_route53_zone.zone[0].zone_id
   name    = local.dvo.resource_record_name
   type    = local.dvo.resource_record_type
   ttl     = 60
@@ -83,13 +85,12 @@ resource "aws_route53_record" "cert_validation" {
 resource "aws_acm_certificate_validation" "cert_validation" {
   provider                = aws.us_east
   certificate_arn         = aws_acm_certificate.cert.arn
-  validation_record_fqdns = [aws_route53_record.cert_validation.fqdn]
+  validation_record_fqdns = var.use_route53 ? [aws_route53_record.cert_validation[0].fqdn] : []
 }
 
-
-################################################
-# CLOUDFRONT DISTRIBUTION
-################################################
+####################################
+# CloudFront Distribution
+####################################
 resource "aws_cloudfront_distribution" "cdn" {
   enabled             = true
   default_root_object = "index.html"
@@ -97,7 +98,7 @@ resource "aws_cloudfront_distribution" "cdn" {
 
   origin {
     origin_id   = "S3-${var.domain}"
-    domain_name = aws_s3_bucket.site.website_endpoint
+    domain_name = aws_s3_bucket.site.bucket_regional_domain_name  # ✅ Correct for OAI
 
     s3_origin_config {
       origin_access_identity = aws_cloudfront_origin_access_identity.oai.cloudfront_access_identity_path
@@ -107,11 +108,10 @@ resource "aws_cloudfront_distribution" "cdn" {
   default_cache_behavior {
     target_origin_id       = "S3-${var.domain}"
     viewer_protocol_policy = "redirect-to-https"
-    allowed_methods        = ["GET","HEAD"]
-    cached_methods         = ["GET","HEAD"]
+    allowed_methods        = ["GET", "HEAD"]
+    cached_methods         = ["GET", "HEAD"]
   }
 
-# REQUIRED BY AWS PROVIDER v5+: Must have at least one restrictions block
   restrictions {
     geo_restriction {
       restriction_type = "none"
@@ -124,11 +124,12 @@ resource "aws_cloudfront_distribution" "cdn" {
   }
 }
 
-################################################
-# ROUTE53 RECORDS
-################################################
+####################################
+# Route 53 Records (optional)
+####################################
 resource "aws_route53_record" "root_alias" {
-  zone_id = aws_route53_zone.zone.zone_id
+  count   = var.use_route53 ? 1 : 0
+  zone_id = aws_route53_zone.zone[0].zone_id
   name    = var.domain
   type    = "A"
   alias {
@@ -139,7 +140,8 @@ resource "aws_route53_record" "root_alias" {
 }
 
 resource "aws_route53_record" "www_cname" {
-  zone_id = aws_route53_zone.zone.zone_id
+  count   = var.use_route53 ? 1 : 0
+  zone_id = aws_route53_zone.zone[0].zone_id
   name    = "www"
   type    = "CNAME"
   ttl     = 300
