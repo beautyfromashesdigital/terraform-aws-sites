@@ -8,7 +8,7 @@ terraform {
 }
 
 ####################################
-# Providers
+# PROVIDERS
 ####################################
 provider "aws" {
   region = var.aws_region
@@ -20,18 +20,21 @@ provider "aws" {
 }
 
 ####################################
-# S3 Bucket + Policy
+# S3 BUCKET + ACL + WEBSITE CONFIG
 ####################################
+
+# 1️⃣ The bucket itself (no acl here!)
 resource "aws_s3_bucket" "site" {
   bucket = var.domain
-  acl    = "private"
 }
 
+# 2️⃣ Modern ACL block
 resource "aws_s3_bucket_acl" "site_acl" {
   bucket = aws_s3_bucket.site.id
   acl    = "private"
 }
 
+# 3️⃣ Separate website config — use blocks not args!
 resource "aws_s3_bucket_website_configuration" "site" {
   bucket = aws_s3_bucket.site.id
 
@@ -44,7 +47,7 @@ resource "aws_s3_bucket_website_configuration" "site" {
   }
 }
 
-
+# 4️⃣ Bucket policy to allow OAI to read
 resource "aws_cloudfront_origin_access_identity" "oai" {
   comment = "OAI for ${var.domain}"
 }
@@ -66,16 +69,16 @@ resource "aws_s3_bucket_policy" "site_policy" {
 }
 
 ####################################
-# Route 53 Hosted Zone (optional)
+# ROUTE 53: Look up existing zone
 ####################################
 data "aws_route53_zone" "zone" {
-  count = var.use_route53 ? 1 : 0
-  name  = var.domain
+  count        = var.use_route53 ? 1 : 0
+  name         = "${var.domain}."
   private_zone = false
 }
 
 ####################################
-# ACM Certificate + DNS validation
+# ACM CERTIFICATE + VALIDATION
 ####################################
 resource "aws_acm_certificate" "cert" {
   provider          = aws.us_east
@@ -103,7 +106,7 @@ resource "aws_acm_certificate_validation" "cert_validation" {
 }
 
 ####################################
-# CloudFront Distribution
+# CLOUDFRONT DISTRIBUTION
 ####################################
 resource "aws_cloudfront_distribution" "cdn" {
   enabled             = true
@@ -112,7 +115,7 @@ resource "aws_cloudfront_distribution" "cdn" {
 
   origin {
     origin_id   = "S3-${var.domain}"
-    domain_name = aws_s3_bucket.site.bucket_regional_domain_name  # ✅ Correct for OAI
+    domain_name = aws_s3_bucket.site.bucket_regional_domain_name
 
     s3_origin_config {
       origin_access_identity = aws_cloudfront_origin_access_identity.oai.cloudfront_access_identity_path
@@ -139,7 +142,7 @@ resource "aws_cloudfront_distribution" "cdn" {
 }
 
 ####################################
-# Route 53 Records (optional)
+# ROUTE 53 RECORDS (optional)
 ####################################
 resource "aws_route53_record" "root_alias" {
   count   = var.use_route53 ? 1 : 0
