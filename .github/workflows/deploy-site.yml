@@ -78,13 +78,13 @@ jobs:
       # 8️⃣ Sync static site to S3
       - name: Sync to S3
         run: |
-          BUCKET=$(terraform -chdir=infra output -raw bucket_name)
+          BUCKET=$(terraform output -raw bucket_name)
           aws s3 sync site/out/ s3://$BUCKET --delete
 
       # 9️⃣ Invalidate CloudFront
       - name: Invalidate CloudFront
         run: |
-          CF_ID=$(terraform -chdir=infra output -raw cloudfront_id)
+          CF_ID=$(terraform  output -raw cloudfront_id)
           aws cloudfront create-invalidation --distribution-id $CF_ID --paths "/*"
 
       # 🔟 Show instructions if DNS is external
@@ -92,12 +92,12 @@ jobs:
         if: ${{ inputs.use_route53 == 'false' }}
         run: |
           echo "::notice ::Add this DNS record at your registrar to validate SSL:"
-          echo "  Name: $(terraform -chdir=infra output -raw validation_record_name)"
-          echo "  Type: $(terraform -chdir=infra output -raw validation_record_type)"
-          echo "  Value: $(terraform -chdir=infra output -raw validation_record_value)"
+          echo "  Name: $(terraform  output -raw validation_record_name)"
+          echo "  Type: $(terraform  output -raw validation_record_type)"
+          echo "  Value: $(terraform  output -raw validation_record_value)"
           echo ""
           echo "::notice ::Point your domain's A/CNAME to:"
-          echo "  $(terraform -chdir=infra output -raw cloudfront_domain_name)"
+          echo "  $(terraform  output -raw cloudfront_domain_name)"
 
       # ✅ Final success message
       - name: Done!
