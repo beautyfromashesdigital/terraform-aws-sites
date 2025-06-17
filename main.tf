@@ -25,11 +25,12 @@ provider "aws" {
 resource "aws_s3_bucket" "site" {
   bucket = var.domain
   acl    = "private"
+}
 
-  website {
-    index_document = "index.html"
-    error_document = "404.html"
-  }
+resource "aws_s3_bucket_website_configuration" "site" {
+  bucket = aws_s3_bucket.site.id
+  index_document = "index.html"
+  error_document = "404.html"
 }
 
 resource "aws_cloudfront_origin_access_identity" "oai" {

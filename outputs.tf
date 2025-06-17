@@ -23,5 +23,5 @@ output "validation_record_value" {
 }
 
 output "zone_name_servers" {
-  value = var.use_route53 ? aws_route53_zone.zone[0].name_servers : []
+  value = var.use_route53 ? data.aws_route53_zone.zone[0].name_servers : []
 }
