@@ -27,11 +27,23 @@ resource "aws_s3_bucket" "site" {
   acl    = "private"
 }
 
+resource "aws_s3_bucket_acl" "site_acl" {
+  bucket = aws_s3_bucket.site.id
+  acl    = "private"
+}
+
 resource "aws_s3_bucket_website_configuration" "site" {
   bucket = aws_s3_bucket.site.id
-  index_document = "index.html"
-  error_document = "404.html"
+
+  index_document {
+    suffix = "index.html"
+  }
+
+  error_document {
+    key = "404.html"
+  }
 }
+
 
 resource "aws_cloudfront_origin_access_identity" "oai" {
   comment = "OAI for ${var.domain}"
