@@ -28,12 +28,6 @@ resource "aws_s3_bucket" "site" {
   bucket = var.domain
 }
 
-# 2️⃣ Modern ACL block
-resource "aws_s3_bucket_acl" "site_acl" {
-  bucket = aws_s3_bucket.site.id
-  acl    = "private"
-}
-
 # 3️⃣ Separate website config — use blocks not args!
 resource "aws_s3_bucket_website_configuration" "site" {
   bucket = aws_s3_bucket.site.id
